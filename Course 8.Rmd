@@ -1,0 +1,130 @@
+---
+title: "Course 8 - Practical Machine Learning"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+###### Liew Wei Ping
+
+##### **Executive Summary**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+The goals is to address the following questions:
+1. To predict the manner in which they did the exercise
+
+##### **Exploratory data analysis**
+
+Step 1: Load the required dataset into memory.
+
+```{r}
+suppressWarnings(library(ggplot2))
+
+# Loading data sets into memory
+trainSet <- read.csv("pml-training.csv", sep=",", header=TRUE, na.strings="", stringsAsFactors = FALSE)
+testSet <- read.csv("pml-testing.csv", sep=",", header=TRUE, na.strings="", stringsAsFactors = FALSE)
+```
+
+Step 2: Perform basic exploratory data analyses
+```{r}
+str(trainSet)
+```
+
+- From the result, it has been confirmed that the data is structured with 19622 observations and 160 features.
+
+Step 3: Examine the variable we hope to predict; "classe" in this case which refers to the manner in which the subjects did the Unilateral Dumbbell Biceps Curl in five different fashions.
+
+1. Class A - exactly according to the specification
+2. Class B - throwing the elbows to the front 
+3. Class C - lifting the dumbbell only halfway 
+4. Class D - lowering the dumbbell only halfway 
+5. Class E - throwing the hips to the front
+
+```{r}
+table(trainSet$classe)
+```
+
+Step 4: Examine "classe" data type
+```{r}
+class(trainSet$classe)
+```
+
+Step 5: Since many R machine learning classifiers require that the target feature is coded as a factor, we shall cast "classe" data type into factor.
+```{r}
+trainSet$classe<-factor(trainSet$classe)
+```
+
+##### **Data preparation**
+
+Step 1: Loading needed libraries
+```{r}
+suppressWarnings(library(caret))
+suppressWarnings(library(kernlab))
+suppressWarnings(library(randomForest))
+
+set.seed(3579)
+```
+
+Step 2: Removing unwanted columns from training data set.
+```{r}
+trainSet <- subset(trainSet, select=-c(X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, new_window, num_window))
+```
+
+Step 3: Cleaning the training data set by replacing all invalid value with "0"
+```{r}
+trainSet[is.na(trainSet)|trainSet=="NA"|trainSet=="#DIV/0!"|trainSet==""] <- 0
+```
+
+Step 4: Removing columns with near zero value
+```{r}
+nzvColumns <- nearZeroVar(trainSet)
+trainSet <- trainSet[-nzvColumns]
+```
+
+Step 5: Partitioning the training data set to allow cross-validation. In this project, I will partition the data into 70% for training and 30% for cross validation.
+```{r}
+trainSetIdx <- createDataPartition(trainSet$classe, p=.7, list=FALSE)
+dataTrain = trainSet[trainSetIdx,]
+dataTest = trainSet[-trainSetIdx,]
+```
+
+Step 6: Checking on the partitioned data
+```{r}
+plot(dataTrain$classe, col="green", main="Bar Plot on distribution of predictor in dataTrain", xlab="classe", ylab="Frequency")
+
+plot(dataTest$classe, col="purple", main="Bar Plot on distribution of predictor in dataTest", xlab="classe", ylab="Frequency")
+```
+
+- From the result, it can be observed that the predictor for different classes are almost equally distributed into dataTrain and dataSet. Therefore, we shall proceed to create the prediction model.
+
+##### **Creating the prediction model**
+
+In this project, I have decided to make use of Random Forest to create the prediction model as: 
+
+- Random forest is an ensemble learning method for classification, regression and other tasks, that operate by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees. 
+- Random decision forests correct for decision trees' habit of overfitting to their training set.
+
+```{r}
+# Train the model
+modelFit <- randomForest(classe ~., data=dataTrain, method="class")
+
+# Predicting the test set using the trained model
+prediction <- predict(modelFit, dataTest, type = "class")
+
+# Outputting the result
+confusionMatrix(prediction, dataTest$classe)
+```
+
+- As we can see from the confusion matrix, Random Forest is able to predict the test data with 99.61% of accuracy.
+- out-of-sample error rate is estimated at 0.0039 or about 0.4% only.
+- The Kappa value, which is the measurement of the amount of agreement correct by the agreement expected also strongly indicating that calculated result is in "very good agreement" as it falls between the range of 0.80 to 1.00.
+- As the result, we shall proceed to apply this model onto our actual test data.
+
+##### **Predicting actual test data**
+
+```{r}
+testSetPrediction <- predict(modelFit, testSet, type="class")
+testSetPrediction
+```
